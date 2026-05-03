@@ -1,15 +1,8 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 import os
 import time
+import requests  # Biblioteca para a API
 from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font
-import os.path
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -55,32 +48,24 @@ class ClimaApp:
         
         self.label_status_oper = ttk.Label(self.main_frame, text="", foreground='blue')
         self.label_status_oper.pack(pady=5)
-    
+
     def executar_coleta(self):
         try:
             self.btn_buscar['state'] = tk.DISABLED
-            self.label_status_oper['text'] = "Conectando ao Google..."
+            self.label_status_oper['text'] = "Conectando à API..."
             self.root.update()
             
-            driver = self.iniciar_chrome()
-            if driver:
-                self.label_status_oper['text'] = "Coletando dados climáticos..."
-                self.root.update()
-                
-                cidade = self.entry_cidade.get()
-                dados = self.coletar_dados(driver, cidade)
-                
-                if dados:
-                    self.atualizar_interface(dados)
-                    self.salvar_dados_excel(dados, cidade)
-                    self.label_status_oper['text'] = "Dados coletados e salvos com sucesso!"
-                    messagebox.showinfo("Sucesso", "Dados coletados e salvos com sucesso!")
-                else:
-                    self.label_status_oper['text'] = "Falha ao coletar dados"
-                    messagebox.showerror("Erro", "Não foi possível obter os dados climáticos")
+            cidade = self.entry_cidade.get()
+            dados = self.coletar_dados(cidade) # Agora não passa mais o 'driver'
+            
+            if dados:
+                self.atualizar_interface(dados)
+                self.salvar_dados_excel(dados, cidade)
+                self.label_status_oper['text'] = "Dados coletados com sucesso!"
+                messagebox.showinfo("Sucesso", "Dados coletados e salvos com sucesso!")
             else:
-                self.label_status_oper['text'] = "Falha ao iniciar navegador"
-                messagebox.showerror("Erro", "Falha ao iniciar o navegador")
+                self.label_status_oper['text'] = "Falha ao coletar dados"
+                messagebox.showerror("Erro", "Não foi possível obter os dados. Verifique a chave da API ou a cidade.")
         
         except Exception as e:
             self.label_status_oper['text'] = f"Erro: {str(e)}"
@@ -88,72 +73,39 @@ class ClimaApp:
         finally:
             self.btn_buscar['state'] = tk.NORMAL
             self.root.update()
-            if 'driver' in locals() and driver:
-                driver.quit()
-                os.system("taskkill /f /im chromedriver.exe /t >nul 2>&1")
-                os.system("taskkill /f /im chrome.exe /t >nul 2>&1")
-    
+
     def atualizar_interface(self, dados):
         self.label_data['text'] = f"Data: {dados['data']}"
         self.label_temp['text'] = f"Temperatura: {dados['temperatura']}°C"
         self.label_umid['text'] = f"Umidade: {dados['umidade']}%"
         self.label_status['text'] = f"Condição: {dados['status']}"
-    
-    def iniciar_chrome(self):
-        try:
-            chrome_options = Options()
-            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--disable-gpu")
-            chrome_options.add_argument("--window-size=1920,1080")
-            chrome_options.add_argument("--log-level=3")
-            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-            chrome_options.add_experimental_option('useAutomationExtension', False)
 
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-            return driver
-            
-        except Exception as e:
-            print(f"Erro ao iniciar Chrome: {str(e)}")
-            return None
-
-    def coletar_dados(self, driver, cidade):
+    def coletar_dados(self, cidade):
         try:
-            query = f"clima {cidade}"
-            driver.get(f'https://www.google.com.br/search?q={query}')
+            # VOCÊ PRECISA DA SUA CHAVE AQUI:
+            API_KEY = "737390c42e063356ee1b7c7109c2f6e7" 
+            url = f"https://api.openweathermap.org/data/2.5/weather?q={cidade}&appid={API_KEY}&units=metric&lang=pt_br"
             
-            wait = WebDriverWait(driver, 10)
-            
-            temp = wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "span#wob_tm"))
-            ).text
-            
-            umid = wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "span#wob_hm"))
-            ).text.replace('%', '')
-            
-            status = wait.until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "span#wob_dc"))
-            ).text
-            
-            dados = {
-                'data': time.strftime("%d/%m/%Y %H:%M"),
-                'temperatura': temp,
-                'umidade': umid,
-                'status': status
-            }
-            
-            return dados
-            
+            response = requests.get(url)
+            # Verifica se a requisição deu certo (status 200)
+            if response.status_code == 200:
+                dados_json = response.json()
+                
+                return {
+                    'data': time.strftime("%d/%m/%Y %H:%M"),
+                    'temperatura': dados_json['main']['temp'],
+                    'umidade': dados_json['main']['humidity'],
+                    'status': dados_json['weather'][0]['description'].capitalize()
+                }
+            else:
+                return None
+                
         except Exception as e:
-            print(f"Erro ao coletar dados: {str(e)}")
+            print(f"Erro na API: {str(e)}")
             return None
 
     def salvar_dados_excel(self, dados, cidade, nome_arquivo="clima.xlsx"):
         try:
-            # Obtém o diretório do script atual e junta com o nome do arquivo
             caminho_completo_arquivo = os.path.join(os.path.dirname(os.path.abspath(__file__)), nome_arquivo)
 
             if os.path.exists(caminho_completo_arquivo):
@@ -162,41 +114,31 @@ class ClimaApp:
             else:
                 wb = Workbook()
                 sheet = wb.active
-                sheet['A1'] = 'Cidade'  # Nova coluna para a cidade
+                sheet['A1'] = 'Cidade'
                 sheet['B1'] = 'Data'
                 sheet['C1'] = 'Temp (°C)'
                 sheet['D1'] = 'Umidade (%)'
                 sheet['E1'] = 'Status'
-                
                 for cell in sheet["1:1"]:
                     cell.font = Font(bold=True)
             
-            nova_linha = [
-                cidade, # Adiciona a cidade à nova linha
-                dados['data'],
-                dados['temperatura'],
-                dados['umidade'],
-                dados['status']
-            ]
+            nova_linha = [cidade, dados['data'], dados['temperatura'], dados['umidade'], dados['status']]
             sheet.append(nova_linha)
             
+            # Ajuste automático de largura das colunas
             for column in sheet.columns:
                 max_length = 0
                 column_letter = column[0].column_letter
                 for cell in column:
                     try:
                         if len(str(cell.value)) > max_length:
-                            max_length = len(cell.value)
-                    except:
-                        pass
-                adjusted_width = (max_length + 2)
-                sheet.column_dimensions[column_letter].width = adjusted_width
+                            max_length = len(str(cell.value))
+                    except: pass
+                sheet.column_dimensions[column_letter].width = max_length + 2
             
             wb.save(caminho_completo_arquivo)
-            print(f"Dados salvos com sucesso em {caminho_completo_arquivo}")
-            
         except Exception as e:
-            print(f"Erro ao salvar dados no Excel: {str(e)}")
+            print(f"Erro ao salvar: {str(e)}")
             raise
 
 if __name__ == "__main__":
