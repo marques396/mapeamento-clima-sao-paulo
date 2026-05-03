@@ -16,3 +16,13 @@ bin-release/
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important
 # information for Eclipse / Flash Builder.
+
+# Python (Arquivos temporários e ambientes virtuais)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Dados do Projeto
+# clima.xlsx  <-- Descomente se não quiser que o histórico de buscas suba para o GitHub

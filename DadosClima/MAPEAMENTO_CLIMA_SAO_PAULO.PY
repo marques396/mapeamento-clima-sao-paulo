@@ -5,7 +5,18 @@ from openpyxl import load_workbook, Workbook
 from openpyxl.styles import Font
 import tkinter as tk
 from tkinter import ttk, messagebox
+from dotenv import load_dotenv  # <--- Adicione este import
 
+# 1. Carrega as configurações do arquivo .env
+load_dotenv()
+
+# 2. Captura a chave da variável de ambiente
+API_KEY = os.getenv("OPENWEATHER_API_KEY")
+
+# ADICIONE ESTA LINHA TEMPORARIAMENTE:
+print(f">>> DEBUG: A chave carregada é: {API_KEY}")
+
+# O restante do seu código (funções e interface) vem logo abaixo...
 class ClimaApp:
     def __init__(self, root):
         self.root = root
@@ -82,15 +93,11 @@ class ClimaApp:
 
     def coletar_dados(self, cidade):
         try:
-            # VOCÊ PRECISA DA SUA CHAVE AQUI:
-            API_KEY = "737390c42e063356ee1b7c7109c2f6e7" 
-            url = f"https://api.openweathermap.org/data/2.5/weather?q={cidade}&appid={API_KEY}&units=metric&lang=pt_br"
-            
+            api_key = os.getenv("OPENWEATHER_API_KEY")
+            url = f"https://api.openweathermap.org/data/2.5/weather?q={cidade}&appid={api_key}&units=metric&lang=pt_br"
             response = requests.get(url)
-            # Verifica se a requisição deu certo (status 200)
             if response.status_code == 200:
                 dados_json = response.json()
-                
                 return {
                     'data': time.strftime("%d/%m/%Y %H:%M"),
                     'temperatura': dados_json['main']['temp'],
@@ -99,7 +106,6 @@ class ClimaApp:
                 }
             else:
                 return None
-                
         except Exception as e:
             print(f"Erro na API: {str(e)}")
             return None
